@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHEAT 팀별 진행 일감 조회</title>
+<style>
+  :root{
+    --bg: #17212B;
+    --panel: #1D2A36;
+    --panel-hi: #24333F;
+    --line: #2C3D4A;
+    --text: #EDF1F4;
+    --text-dim: #93A7B3;
+    --amber: #E3A94D;
+    --amber-dim: #6B5735;
+    --blue: #6FA8D6;
+    --blue-dim: #2E4356;
+    --danger: #D9694F;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family: -apple-system, "Pretendard", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+    padding:20px;
+    line-height:1.5;
+  }
+  .mono{ font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
+
+  .header{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom:18px; flex-wrap:wrap; gap:8px;
+  }
+  .title{ font-size:20px; font-weight:700; letter-spacing:-0.01em; }
+  .subtitle{ color:var(--text-dim); font-size:13px; margin-top:2px;}
+  .proj-link{ color:var(--blue); font-size:12px; text-decoration:none; }
+  .proj-link:hover{ text-decoration:underline; }
+
+  .teams{
+    display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px;
+  }
+  .team-chip{
+    background:var(--panel); border:1px solid var(--line); color:var(--text-dim);
+    padding:7px 13px; border-radius:6px; font-size:13px; cursor:pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .team-chip:hover{ border-color:var(--blue-dim); color:var(--text); }
+  .team-chip.active{
+    background:var(--amber-dim); border-color:var(--amber); color:var(--amber);
+    font-weight:600;
+  }
+
+  .toolbar{
+    display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;
+  }
+  .toolbar-group{
+    display:flex; align-items:center; gap:4px;
+  }
+  select{
+    background:var(--panel); color:var(--text); border:1px solid var(--line);
+    border-radius:6px; padding:7px 10px; font-size:13px;
+  }
+  #assigneeSelect{ min-width:170px; }
+  #sortColumnSelect{ min-width:110px; }
+  .btn{
+    background:transparent; border:1px solid var(--line); color:var(--text-dim);
+    padding:7px 12px; border-radius:6px; font-size:13px; cursor:pointer; white-space:nowrap;
+  }
+  .btn:hover{ border-color:var(--blue); color:var(--text); }
+  .btn.active-filter{ border-color:var(--amber); color:var(--amber); }
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .meta{ color:var(--text-dim); font-size:12px; margin-left:auto; }
+  .toolbar-item{ position:relative; display:inline-block; }
+
+  .list{
+    border:1px solid var(--line); border-radius:8px; background:var(--panel);
+    overflow-x:auto; position:relative;
+  }
+  .row{
+    display:grid;
+    grid-template-columns: 70px 2.6fr 90px 110px 64px 76px 76px;
+    gap:10px; align-items:center;
+    padding:11px 14px; border-bottom:1px solid var(--line);
+    font-size:13.5px;
+    min-width:690px;
+  }
+  .row:last-child{ border-bottom:none; }
+  .row.head{
+    color:var(--text-dim); font-size:11.5px; background:var(--panel-hi);
+    align-items:center;
+  }
+  .headcell{
+    display:flex; align-items:center; gap:4px; cursor:default; position:relative;
+  }
+  .headcell.sortable .label{ cursor:pointer; user-select:none; }
+  .headcell.sortable .label:hover{ color:var(--text); }
+  .sort-arrow{ font-size:9px; color:var(--amber); }
+  .filter-btn{
+    background:none; border:none; color:var(--text-dim); cursor:pointer;
+    font-size:10px; padding:2px 4px; line-height:1;
+  }
+  .filter-btn:hover{ color:var(--text); }
+  .filter-btn.active{ color:var(--amber); }
+
+  .filter-panel{
+    position:absolute; top:100%; left:0; margin-top:4px;
+    background:var(--panel-hi); border:1px solid var(--line); border-radius:8px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.35);
+    min-width:200px; max-width:280px; max-height:280px; overflow-y:auto;
+    z-index:20; padding:8px 0; font-size:12.5px; font-weight:normal;
+  }
+  .filter-panel-actions{
+    display:flex; justify-content:space-between; padding:2px 12px 8px; border-bottom:1px solid var(--line); margin-bottom:4px;
+  }
+  .filter-panel-actions button{
+    background:none; border:none; color:var(--blue); font-size:11.5px; cursor:pointer; padding:0;
+  }
+  .filter-panel-actions button:hover{ text-decoration:underline; }
+  .filter-option{
+    display:flex; align-items:center; gap:7px; padding:5px 12px; color:var(--text);
+    white-space:nowrap;
+  }
+  .filter-option:hover{ background:var(--panel); }
+  .filter-option input{ accent-color: var(--amber); }
+  .filter-count{ color:var(--text-dim); font-size:11px; margin-left:auto; padding-left:8px; }
+
+  .key{ color:var(--blue); }
+  .key-link{ color:var(--blue); text-decoration:none; }
+  .key-link:hover{ text-decoration:underline; }
+  .summary{ color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .assignee{ color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fixversions{ color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .status{
+    display:inline-block; padding:2px 8px; border-radius:4px; font-size:11.5px;
+    white-space:nowrap; text-align:center;
+  }
+  .status.new{ background:#2C3D4A; color:#93A7B3; }
+  .status.progress{ background:var(--amber-dim); color:var(--amber); }
+  .datecell{ color:var(--text-dim); font-size:12px; text-align:right; }
+
+  .empty, .loading, .error{
+    padding:40px 20px; text-align:center; color:var(--text-dim); font-size:13.5px;
+  }
+  .error{ color:var(--danger); }
+  .placeholder{
+    padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13.5px;
+  }
+
+  .spinner{
+    width:16px; height:16px; border:2px solid var(--line); border-top-color:var(--amber);
+    border-radius:50%; display:inline-block; animation:spin 0.7s linear infinite; vertical-align:-3px;
+    margin-right:6px;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg);} }
+
+  @media (max-width: 640px){
+    .list{ -webkit-overflow-scrolling:touch; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="title">CHEAT 팀별 진행 일감</div>
+    <div class="subtitle">팀(컴포넌트)을 선택하면 완료·보류를 제외한 일감을 보여줍니다. 데이터는 GitHub Actions가 주기적으로 Jira에서 가져와 저장한 스냅샷입니다.</div>
+  </div>
+  <a class="proj-link" href="https://com2us.atlassian.net/jira/software/c/projects/CHEAT" target="_blank">CHEAT 프로젝트 열기 ↗</a>
+</div>
+
+<div class="teams" id="teams"></div>
+
+<div class="toolbar">
+  <select id="assigneeSelect" disabled>
+    <option value="">담당자: 전체</option>
+  </select>
+
+  <button class="btn" id="refreshBtn">새로고침</button>
+
+  <select id="refreshIntervalSelect"></select>
+
+  <div class="toolbar-item">
+    <button class="btn" id="versionBtn" disabled>버전 설정 ▾</button>
+    <div id="versionPanelContainer"></div>
+  </div>
+
+  <div class="toolbar-group">
+    <select id="sortColumnSelect"></select>
+    <button class="btn" id="sortAscBtn">▲ 오름차순</button>
+    <button class="btn" id="sortDescBtn">▼ 내림차순</button>
+  </div>
+
+  <div class="toolbar-item">
+    <button class="btn" id="excludeAssigneeBtn" disabled>담당자 제외 설정 ▾</button>
+    <div id="excludePanelContainer"></div>
+  </div>
+
+  <button class="btn" id="clearFiltersBtn">필터 초기화</button>
+  <button class="btn" id="overdueBtn">⏰ 목표 일정 지남만</button>
+  <span class="meta" id="metaInfo"></span>
+</div>
+
+<div class="list" id="listArea">
+  <div class="placeholder">위에서 팀을 선택해 주세요</div>
+</div>
+
+<script>
+const DATA_URL = "./data/cheat_data.json";
+
+const TEAM_MAP = {
+  "기획":        ["K기획"],
+  "UI":          ["아트-UI"],
+  "연출":        ["아트-애니메이션"],
+  "캐릭터모델링": ["아트-캐릭터"],
+  "배경모델링":   ["아트-배경"],
+  "클라":        ["K클라이언트", "클라-시스템"],
+  "서버":        ["서버", "K서버"],
+  "인게임기획":   ["인게임기획"],
+  "인게임클라":   ["클라-인게임"],
+  "인게임서버":   ["인게임서버"],
+  "TA":          ["클라-TA"],
+  "PM":          ["PM"],
+};
+
+const COLUMNS = [
+  { key: "assignee",    label: "담당자",     filterable: true,  multi: false, type: "text" },
+  { key: "summary",     label: "일감 제목",   filterable: false, multi: false, type: "text" },
+  { key: "key",         label: "키",         filterable: false, multi: false, type: "text" },
+  { key: "fixVersions", label: "수정 버전",   filterable: true,  multi: true,  type: "text" },
+  { key: "status",      label: "상태",       filterable: true,  multi: false, type: "text" },
+  { key: "startDate",   label: "시작 날짜",   filterable: false, multi: false, type: "date" },
+  { key: "targetDate",  label: "목표 일정",   filterable: false, multi: false, type: "date" },
+];
+
+const REFRESH_INTERVAL_OPTIONS = [
+  { value: 5, label: "5분마다 새로고침" },
+  { value: 15, label: "15분마다 새로고침" },
+  { value: 30, label: "30분마다 새로고침" },
+  { value: 0, label: "자동 새로고침 끔" },
+];
+const STORAGE_KEYS = {
+  globalExcludedAssignees: "cheat_global_excluded_assignees",
+  knownAssignees: "cheat_known_assignees",
+  versionIncludedFilter: "cheat_version_included_filter",
+  refreshIntervalMinutes: "cheat_refresh_interval_minutes",
+};
+
+// window.storage(아티팩트 전용 API) 대신 브라우저 localStorage를 사용.
+// 함수 시그니처는 기존 코드와 최대한 비슷하게 유지.
+function storageGet(key){
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? null : { value: v };
+  } catch(e) { return null; }
+}
+function storageSet(key, value){
+  try { localStorage.setItem(key, value); } catch(e) { /* ignore */ }
+}
+function storageDelete(key){
+  try { localStorage.removeItem(key); } catch(e) { /* ignore */ }
+}
+
+let rawData = null; // data/cheat_data.json 전체
+
+let state = {
+  mode: "team",   // "team" | "overdue"
+  team: null,
+  issues: [],
+  fetchedAt: null,          // 서버(GitHub Actions)가 데이터를 갱신한 시각
+  excludedFilters: {},
+  includedVersions: null,
+  sort: { key: null, dir: "asc" },
+  openFilterPanel: null,
+  versionPanelOpen: false,
+  excludePanelOpen: false,
+  globalExcludedAssignees: new Set(),
+  knownAssignees: new Set(),
+  releasedVersions: new Set(),
+  unreleasedVersions: new Set(),
+  refreshIntervalMinutes: 15,
+};
+
+function renderTeams(){
+  const el = document.getElementById("teams");
+  el.innerHTML = "";
+  Object.keys(TEAM_MAP).forEach(team => {
+    const chip = document.createElement("button");
+    chip.className = "team-chip" + (state.team === team ? " active" : "");
+    chip.textContent = team;
+    chip.onclick = () => selectTeam(team);
+    el.appendChild(chip);
+  });
+}
+
+function updateKnownAssignees(issues){
+  let changed = false;
+  issues.forEach(i => {
+    if (i.assignee && i.assignee !== "미배정" && !state.knownAssignees.has(i.assignee)) {
+      state.knownAssignees.add(i.assignee);
+      changed = true;
+    }
+  });
+  if (changed) {
+    storageSet(STORAGE_KEYS.knownAssignees, JSON.stringify(Array.from(state.knownAssignees)));
+  }
+}
+
+function selectTeam(team){
+  state.mode = "team";
+  state.team = team;
+  state.excludedFilters = {};
+  state.openFilterPanel = null;
+  state.versionPanelOpen = false;
+  state.excludePanelOpen = false;
+  renderTeams();
+
+  if (!rawData) { showLoading(`${team} 팀`); return; }
+  state.issues = (rawData.teams && rawData.teams[team]) || [];
+  updateKnownAssignees(state.issues);
+  renderTable();
+}
+
+function loadOverdue(){
+  state.mode = "overdue";
+  state.team = null;
+  renderTeams();
+  if (!rawData) { showLoading("목표 일정이 지난 전체"); return; }
+  state.issues = rawData.overdue || [];
+  updateKnownAssignees(state.issues);
+  renderTable();
+}
+
+function exitOverdueMode(){
+  state.mode = "team";
+  state.team = null;
+  state.issues = [];
+  renderTeams();
+  document.getElementById("listArea").innerHTML = '<div class="placeholder">위에서 팀을 선택해 주세요</div>';
+  renderToolbarExtras();
+}
+
+function showLoading(label){
+  document.getElementById("listArea").innerHTML =
+    '<div class="loading"><span class="spinner"></span>' + escapeHtml(label) + ' 데이터를 불러오는 중…</div>';
+  document.getElementById("metaInfo").textContent = "";
+}
+
+function showError(msg){
+  document.getElementById("listArea").innerHTML = '<div class="error">' + escapeHtml(msg) + '</div>';
+}
+
+function statusClass(category){
+  return category === "indeterminate" ? "status progress" : "status new";
+}
+
+function getUniqueValues(colKey, multi){
+  const set = new Set();
+  state.issues.forEach(i => {
+    const raw = i[colKey];
+    if (!raw || raw === "-") return;
+    if (colKey === "assignee" && state.globalExcludedAssignees.has(raw)) return;
+    if (multi) {
+      raw.split(",").map(s => s.trim()).filter(Boolean).forEach(v => {
+        if (colKey === "fixVersions" && state.releasedVersions.has(v)) return;
+        set.add(v);
+      });
+    } else {
+      set.add(raw);
+    }
+  });
+  return Array.from(set).sort((a,b) => a.localeCompare(b, "ko"));
+}
+
+function issueMatchesFilters(issue){
+  if (state.globalExcludedAssignees.has(issue.assignee)) return false;
+
+  if (state.includedVersions !== null) {
+    const raw = issue.fixVersions;
+    const values = raw && raw !== "-" ? raw.split(",").map(s => s.trim()).filter(Boolean) : [];
+    const hasIncluded = values.some(v => state.includedVersions.has(v));
+    if (!hasIncluded) return false;
+  }
+
+  for (const col of COLUMNS) {
+    if (!col.filterable || col.key === "fixVersions") continue;
+    const excluded = state.excludedFilters[col.key];
+    if (!excluded || excluded.size === 0) continue;
+    const raw = issue[col.key];
+    const values = col.multi
+      ? (raw && raw !== "-" ? raw.split(",").map(s => s.trim()).filter(Boolean) : [])
+      : [raw];
+    if (col.multi) {
+      const hasVisible = values.length === 0 ? true : values.some(v => !excluded.has(v));
+      if (!hasVisible) return false;
+    } else {
+      if (excluded.has(raw)) return false;
+    }
+  }
+  return true;
+}
+
+function compareIssues(a, b){
+  const { key, dir } = state.sort;
+  if (!key) return 0;
+  const col = COLUMNS.find(c => c.key === key);
+  let va = a[key], vb = b[key];
+  let cmp;
+  if (col.type === "date") {
+    const aEmpty = (va === "-" || !va), bEmpty = (vb === "-" || !vb);
+    if (aEmpty && bEmpty) cmp = 0;
+    else if (aEmpty) cmp = 1;
+    else if (bEmpty) cmp = -1;
+    else cmp = va < vb ? -1 : va > vb ? 1 : 0;
+  } else {
+    cmp = String(va).localeCompare(String(vb), "ko");
+  }
+  return dir === "desc" ? -cmp : cmp;
+}
+
+function getFilteredSorted(){
+  let list = state.issues.filter(issueMatchesFilters);
+  if (state.sort.key) {
+    list = list.slice().sort(compareIssues);
+  }
+  return list;
+}
+
+function toggleFilterPanel(colKey){
+  state.openFilterPanel = state.openFilterPanel === colKey ? null : colKey;
+  state.versionPanelOpen = false;
+  state.excludePanelOpen = false;
+  renderTable();
+}
+
+function toggleVersionPanel(){
+  state.versionPanelOpen = !state.versionPanelOpen;
+  state.openFilterPanel = null;
+  state.excludePanelOpen = false;
+  if (state.team || state.mode === "overdue") renderTable(); else renderToolbarExtras();
+}
+
+function toggleExcludePanel(){
+  state.excludePanelOpen = !state.excludePanelOpen;
+  state.openFilterPanel = null;
+  state.versionPanelOpen = false;
+  if (state.team || state.mode === "overdue") renderTable(); else renderToolbarExtras();
+}
+
+function toggleFilterValue(colKey, value, checked){
+  if (!state.excludedFilters[colKey]) state.excludedFilters[colKey] = new Set();
+  const set = state.excludedFilters[colKey];
+  if (checked) set.delete(value); else set.add(value);
+  renderTable();
+}
+
+function setAllFilterValues(colKey, allValues, checked){
+  if (checked) {
+    delete state.excludedFilters[colKey];
+  } else {
+    state.excludedFilters[colKey] = new Set(allValues);
+  }
+  renderTable();
+}
+
+function persistVersionInclusion(){
+  if (state.includedVersions === null) {
+    storageDelete(STORAGE_KEYS.versionIncludedFilter);
+  } else {
+    storageSet(STORAGE_KEYS.versionIncludedFilter, JSON.stringify(Array.from(state.includedVersions)));
+  }
+}
+
+function toggleVersionInclusion(value, checked, allValues){
+  if (state.includedVersions === null) {
+    state.includedVersions = new Set(allValues);
+  }
+  if (checked) state.includedVersions.add(value); else state.includedVersions.delete(value);
+  persistVersionInclusion();
+  renderTable();
+}
+
+function setVersionSelectionAll(includeAll){
+  state.includedVersions = includeAll ? null : new Set();
+  persistVersionInclusion();
+  if (state.team || state.mode === "overdue") renderTable(); else renderToolbarExtras();
+}
+
+function toggleGlobalExcludedAssignee(name, checked){
+  if (checked) state.globalExcludedAssignees.delete(name); else state.globalExcludedAssignees.add(name);
+  storageSet(STORAGE_KEYS.globalExcludedAssignees, JSON.stringify(Array.from(state.globalExcludedAssignees)));
+  if (state.team || state.mode === "overdue") renderTable(); else renderToolbarExtras();
+}
+
+function setAllExcludedAssignees(exclude){
+  state.globalExcludedAssignees = exclude ? new Set(state.knownAssignees) : new Set();
+  storageSet(STORAGE_KEYS.globalExcludedAssignees, JSON.stringify(Array.from(state.globalExcludedAssignees)));
+  if (state.team || state.mode === "overdue") renderTable(); else renderToolbarExtras();
+}
+
+function toggleSort(colKey){
+  if (state.sort.key === colKey) {
+    state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
+  } else {
+    state.sort.key = colKey;
+    state.sort.dir = "asc";
+  }
+  renderTable();
+}
+
+function setSort(colKey, dir){
+  state.sort = { key: colKey, dir };
+  if (state.team || state.mode === "overdue") renderTable(); else renderToolbarExtras();
+}
+
+function clearAllFilters(){
+  state.excludedFilters = {};
+  state.sort = { key: null, dir: "asc" };
+  if (state.team || state.mode === "overdue") renderTable(); else renderToolbarExtras();
+}
+
+function renderFilterPanel(col){
+  const values = getUniqueValues(col.key, col.multi);
+  const excluded = state.excludedFilters[col.key] || new Set();
+  let html = `<div class="filter-panel" onclick="event.stopPropagation()">
+    <div class="filter-panel-actions">
+      <button onclick="setAllFilterValues('${col.key}', ${JSON.stringify(values).replace(/"/g,'&quot;')}, true)">전체 선택</button>
+      <button onclick="setAllFilterValues('${col.key}', ${JSON.stringify(values).replace(/"/g,'&quot;')}, false)">전체 해제</button>
+    </div>`;
+  values.forEach(v => {
+    const checked = !excluded.has(v);
+    const count = state.issues.filter(i => {
+      const raw = i[col.key];
+      if (col.multi) return raw && raw !== "-" && raw.split(",").map(s=>s.trim()).includes(v);
+      return raw === v;
+    }).length;
+    const vJson = JSON.stringify(v).replace(/"/g, '&quot;');
+    html += `<label class="filter-option">
+      <input type="checkbox" ${checked ? "checked" : ""} onchange="toggleFilterValue('${col.key}', ${vJson}, this.checked)">
+      <span>${escapeHtml(v)}</span>
+      <span class="filter-count">${count}</span>
+    </label>`;
+  });
+  if (values.length === 0) html += '<div class="filter-option" style="color:var(--text-dim)">표시할 값이 없습니다</div>';
+  html += `</div>`;
+  return html;
+}
+
+function renderVersionPanel(){
+  let values = Array.from(state.unreleasedVersions);
+  if (values.length === 0) values = getUniqueValues("fixVersions", true);
+  values = values.sort((a,b) => a.localeCompare(b, "ko"));
+
+  const isAllMode = state.includedVersions === null;
+  const valuesLiteral = JSON.stringify(values).replace(/"/g, '&quot;');
+  let html = `<div class="filter-panel" onclick="event.stopPropagation()">
+    <div class="filter-panel-actions">
+      <button onclick="setVersionSelectionAll(true)">전체 선택</button>
+      <button onclick="setVersionSelectionAll(false)">전체 해제</button>
+    </div>`;
+  values.forEach(v => {
+    const checked = isAllMode ? true : state.includedVersions.has(v);
+    const count = state.issues.filter(i => i.fixVersions && i.fixVersions !== "-" && i.fixVersions.split(",").map(s=>s.trim()).includes(v)).length;
+    const vJson = JSON.stringify(v).replace(/"/g, '&quot;');
+    html += `<label class="filter-option">
+      <input type="checkbox" ${checked ? "checked" : ""} onchange="toggleVersionInclusion(${vJson}, this.checked, ${valuesLiteral})">
+      <span>${escapeHtml(v)}</span>
+      <span class="filter-count">${count}</span>
+    </label>`;
+  });
+  if (values.length === 0) html += '<div class="filter-option" style="color:var(--text-dim)">표시할 버전이 없습니다</div>';
+  html += `</div>`;
+  return html;
+}
+
+function renderExcludePanel(){
+  const values = Array.from(state.knownAssignees).sort((a,b) => a.localeCompare(b, "ko"));
+  let html = `<div class="filter-panel" onclick="event.stopPropagation()">
+    <div class="filter-panel-actions">
+      <button onclick="setAllExcludedAssignees(false)">전체 포함</button>
+      <button onclick="setAllExcludedAssignees(true)">전체 제외</button>
+    </div>`;
+  values.forEach(v => {
+    const checked = !state.globalExcludedAssignees.has(v);
+    const vJson = JSON.stringify(v).replace(/"/g, '&quot;');
+    html += `<label class="filter-option">
+      <input type="checkbox" ${checked ? "checked" : ""} onchange="toggleGlobalExcludedAssignee(${vJson}, this.checked)">
+      <span>${escapeHtml(v)}</span>
+    </label>`;
+  });
+  if (values.length === 0) html += '<div class="filter-option" style="color:var(--text-dim)">아직 확인된 담당자가 없습니다</div>';
+  html += `</div>`;
+  return html;
+}
+
+function renderHeader(){
+  let html = '<div class="row head">';
+  COLUMNS.forEach(col => {
+    const isSorted = state.sort.key === col.key;
+    const arrow = isSorted ? (state.sort.dir === "asc" ? "▲" : "▼") : "";
+    const align = col.type === "date" ? "justify-content:flex-end;" : "";
+    html += `<div class="headcell sortable" style="${align}">
+      <span class="label" onclick="toggleSort('${col.key}')">${col.label}</span>
+      ${arrow ? `<span class="sort-arrow">${arrow}</span>` : ""}`;
+    if (col.filterable) {
+      const active = col.key === "fixVersions"
+        ? state.includedVersions !== null
+        : (state.excludedFilters[col.key] && state.excludedFilters[col.key].size > 0);
+      html += `<button class="filter-btn ${active ? 'active' : ''}" onclick="event.stopPropagation(); toggleFilterPanel('${col.key}')">▾</button>`;
+      if (state.openFilterPanel === col.key) {
+        html += col.key === "fixVersions" ? renderVersionPanel() : renderFilterPanel(col);
+      }
+    }
+    html += `</div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function getSingleIncludedAssignee(allAssignees){
+  const excluded = state.excludedFilters.assignee;
+  if (!excluded || excluded.size === 0) return "";
+  const included = allAssignees.filter(a => !excluded.has(a));
+  return included.length === 1 ? included[0] : "";
+}
+
+function renderToolbarExtras(){
+  const hasData = state.issues.length > 0;
+
+  const sel = document.getElementById("assigneeSelect");
+  const assignees = getUniqueValues("assignee", false);
+  sel.innerHTML = '<option value="">담당자: 전체</option>' +
+    assignees.map(a => {
+      const count = state.issues.filter(i => i.assignee === a).length;
+      return `<option value="${escapeAttr(a)}">${escapeHtml(a)} (${count}건)</option>`;
+    }).join("");
+  sel.value = getSingleIncludedAssignee(assignees);
+  sel.disabled = !hasData;
+
+  document.getElementById("refreshIntervalSelect").value = String(state.refreshIntervalMinutes);
+
+  const overdueBtn = document.getElementById("overdueBtn");
+  overdueBtn.classList.toggle("active-filter", state.mode === "overdue");
+  overdueBtn.textContent = state.mode === "overdue" ? "⏰ 목표 일정 지남만 (끄기)" : "⏰ 목표 일정 지남만";
+
+  const versionBtn = document.getElementById("versionBtn");
+  versionBtn.disabled = state.unreleasedVersions.size === 0 && !hasData;
+  const versionLabel = state.includedVersions === null
+    ? "버전 설정"
+    : `버전 설정 (${state.includedVersions.size}개 선택)`;
+  versionBtn.textContent = versionLabel + " ▾";
+  versionBtn.classList.toggle("active-filter", state.includedVersions !== null);
+  document.getElementById("versionPanelContainer").innerHTML = state.versionPanelOpen ? renderVersionPanel() : "";
+
+  const sortSelect = document.getElementById("sortColumnSelect");
+  if (!sortSelect.dataset.filled) {
+    sortSelect.innerHTML = COLUMNS.map(c => `<option value="${c.key}">${c.label}</option>`).join("");
+    sortSelect.dataset.filled = "1";
+  }
+  sortSelect.value = state.sort.key || COLUMNS[0].key;
+  document.getElementById("sortAscBtn").classList.toggle("active-filter", !!state.sort.key && state.sort.dir === "asc");
+  document.getElementById("sortDescBtn").classList.toggle("active-filter", !!state.sort.key && state.sort.dir === "desc");
+
+  const excludeBtn = document.getElementById("excludeAssigneeBtn");
+  excludeBtn.disabled = state.knownAssignees.size === 0;
+  const excludedAssigneeCount = state.globalExcludedAssignees.size;
+  excludeBtn.textContent = "담당자 제외 설정" + (excludedAssigneeCount > 0 ? ` (${excludedAssigneeCount}명 제외)` : "") + " ▾";
+  excludeBtn.classList.toggle("active-filter", excludedAssigneeCount > 0);
+  document.getElementById("excludePanelContainer").innerHTML = state.excludePanelOpen ? renderExcludePanel() : "";
+}
+
+function renderTable(){
+  const listArea = document.getElementById("listArea");
+  const filtered = getFilteredSorted();
+
+  let html = renderHeader();
+
+  if (filtered.length === 0) {
+    html += '<div class="empty">조건에 맞는 진행중 일감이 없습니다.</div>';
+  } else {
+    filtered.forEach(i => {
+      html += `
+        <div class="row">
+          <div class="assignee" title="${escapeAttr(i.assignee)}">${escapeHtml(i.assignee)}</div>
+          <div class="summary" title="${escapeAttr(i.summary)}">${escapeHtml(i.summary)}</div>
+          <div class="key mono"><a class="key-link" href="https://com2us.atlassian.net/browse/${escapeAttr(i.key)}" target="_blank" rel="noopener">${escapeHtml(i.key)}</a></div>
+          <div class="fixversions" title="${escapeAttr(i.fixVersions)}">${escapeHtml(i.fixVersions)}</div>
+          <div><span class="${statusClass(i.statusCategory)}">${escapeHtml(i.status)}</span></div>
+          <div class="datecell mono">${escapeHtml(i.startDate)}</div>
+          <div class="datecell mono">${escapeHtml(i.targetDate)}</div>
+        </div>`;
+    });
+  }
+  listArea.innerHTML = html;
+  renderToolbarExtras();
+
+  const time = state.fetchedAt ? new Date(state.fetchedAt).toLocaleString("ko-KR", {hour:'2-digit', minute:'2-digit', month:'2-digit', day:'2-digit'}) : "";
+  document.getElementById("metaInfo").textContent =
+    `${filtered.length} / 총 ${state.issues.length}건 · 데이터 갱신: ${time}`;
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, s => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[s]));
+}
+function escapeAttr(str){ return escapeHtml(str); }
+
+async function loadAllData(forceFresh){
+  const url = forceFresh ? `${DATA_URL}?t=${Date.now()}` : DATA_URL;
+  const res = await fetch(url, { cache: forceFresh ? "no-store" : "default" });
+  if (!res.ok) throw new Error(`데이터 파일을 불러오지 못했습니다 (${res.status}). data/cheat_data.json 이 아직 생성되지 않았을 수 있습니다.`);
+  const data = await res.json();
+  rawData = data;
+  state.fetchedAt = data.fetchedAt || null;
+  state.releasedVersions = new Set((data.versions && data.versions.released) || []);
+  state.unreleasedVersions = new Set((data.versions && data.versions.unreleased) || []);
+
+  if (state.mode === "overdue") {
+    state.issues = data.overdue || [];
+  } else if (state.team) {
+    state.issues = (data.teams && data.teams[state.team]) || [];
+  }
+  updateKnownAssignees(state.issues);
+}
+
+async function refreshData(){
+  const refreshBtn = document.getElementById("refreshBtn");
+  refreshBtn.disabled = true;
+  const prevText = refreshBtn.textContent;
+  refreshBtn.innerHTML = '<span class="spinner"></span>새로고침 중…';
+  try {
+    await loadAllData(true);
+    if (state.team || state.mode === "overdue") renderTable(); else renderToolbarExtras();
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    refreshBtn.disabled = false;
+    refreshBtn.textContent = prevText;
+  }
+}
+
+document.getElementById("refreshBtn").addEventListener("click", refreshData);
+
+document.getElementById("overdueBtn").addEventListener("click", () => {
+  if (state.mode === "overdue") exitOverdueMode();
+  else loadOverdue();
+});
+
+document.getElementById("refreshIntervalSelect").innerHTML =
+  REFRESH_INTERVAL_OPTIONS.map(o => `<option value="${o.value}">${o.label}</option>`).join("");
+
+document.getElementById("refreshIntervalSelect").addEventListener("change", (e) => {
+  state.refreshIntervalMinutes = Number(e.target.value);
+  storageSet(STORAGE_KEYS.refreshIntervalMinutes, String(state.refreshIntervalMinutes));
+});
+
+document.getElementById("clearFiltersBtn").addEventListener("click", clearAllFilters);
+
+document.getElementById("assigneeSelect").addEventListener("change", (e) => {
+  const val = e.target.value;
+  const allAssignees = getUniqueValues("assignee", false);
+  if (!val) {
+    delete state.excludedFilters.assignee;
+  } else {
+    state.excludedFilters.assignee = new Set(allAssignees.filter(a => a !== val));
+  }
+  renderTable();
+});
+
+document.getElementById("versionBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  toggleVersionPanel();
+});
+
+document.getElementById("excludeAssigneeBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  toggleExcludePanel();
+});
+
+document.getElementById("sortAscBtn").addEventListener("click", () => {
+  setSort(document.getElementById("sortColumnSelect").value, "asc");
+});
+document.getElementById("sortDescBtn").addEventListener("click", () => {
+  setSort(document.getElementById("sortColumnSelect").value, "desc");
+});
+
+document.addEventListener("click", () => {
+  if (state.openFilterPanel || state.versionPanelOpen || state.excludePanelOpen) {
+    state.openFilterPanel = null;
+    state.versionPanelOpen = false;
+    state.excludePanelOpen = false;
+    if (state.team || state.mode === "overdue") renderTable(); else renderToolbarExtras();
+  }
+});
+
+async function init(){
+  const excl = storageGet(STORAGE_KEYS.globalExcludedAssignees);
+  if (excl) { try { state.globalExcludedAssignees = new Set(JSON.parse(excl.value)); } catch(e){} }
+
+  const known = storageGet(STORAGE_KEYS.knownAssignees);
+  if (known) { try { state.knownAssignees = new Set(JSON.parse(known.value)); } catch(e){} }
+
+  const ver = storageGet(STORAGE_KEYS.versionIncludedFilter);
+  if (ver) { try { state.includedVersions = new Set(JSON.parse(ver.value)); } catch(e){} }
+
+  const interval = storageGet(STORAGE_KEYS.refreshIntervalMinutes);
+  if (interval && interval.value !== "") state.refreshIntervalMinutes = Number(interval.value);
+
+  renderTeams();
+  renderToolbarExtras();
+
+  try {
+    await loadAllData(false);
+  } catch (e) {
+    showError(e.message);
+  }
+
+  // 클라이언트는 Jira를 직접 호출하지 않고, GitHub Actions가 만들어둔 정적 JSON만 주기적으로 다시 읽는다.
+  setInterval(() => {
+    if (state.refreshIntervalMinutes === 0) return;
+    if (state.openFilterPanel || state.versionPanelOpen || state.excludePanelOpen) return;
+    loadAllData(true).then(() => {
+      if (state.team || state.mode === "overdue") renderTable();
+    }).catch(() => { /* 다음 주기에 재시도 */ });
+  }, Math.max(1, state.refreshIntervalMinutes || 15) * 60 * 1000);
+}
+
+init();
+</script>
+</body>
+</html>
